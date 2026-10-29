@@ -1,0 +1,21 @@
+{
+  "donors": [
+    {
+      "id": 1,
+      "name": "Pulkit Tripathi",
+      "age": 20,
+      "gender": "Male",
+      "blood_group": "A+",
+      "weight": 67.0,
+      "hemoglobin": 12.5,
+      "phone": "8856029158",
+      "email": "",
+      "registered_on": "2026-10-28",
+      "last_donation_date": null,
+      "donation_count": 0
+    }
+  ],
+  "inventory": [],
+  "next_donor_id": 2,
+  "next_unit_id": 1
+}

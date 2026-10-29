@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blood Bank Management System</title>
+<style>
+  :root { --red:#b71c1c; --bg:#f6f6f8; --card:#fff; --line:#ddd; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Arial, sans-serif; background:var(--bg); color:#222; }
+  header { background:var(--red); color:#fff; padding:14px 20px; font-size:20px; }
+  nav { display:flex; gap:4px; padding:10px 20px 0; }
+  nav button { padding:10px 18px; border:0; background:#ddd; cursor:pointer; border-radius:6px 6px 0 0; font-size:15px; }
+  nav button.active { background:var(--card); font-weight:bold; color:var(--red); }
+  main { padding:0 20px 30px; }
+  .tab { display:none; background:var(--card); padding:18px; border-radius:0 6px 6px 6px; }
+  .tab.show { display:block; }
+  h3 { margin:0 0 12px; }
+  form { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-bottom:12px; }
+  label { font-size:13px; display:flex; flex-direction:column; gap:3px; }
+  input, select { padding:8px; border:1px solid var(--line); border-radius:4px; font-size:14px; }
+  button.primary { background:var(--red); color:#fff; border:0; padding:9px 16px; border-radius:4px; cursor:pointer; align-self:end; }
+  button.small { padding:4px 9px; font-size:12px; cursor:pointer; border:1px solid #999; background:#fff; border-radius:3px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin-top:8px; }
+  th, td { border:1px solid var(--line); padding:7px; text-align:left; }
+  th { background:#fafafa; }
+  #msg { margin:12px 20px 0; padding:10px; border-radius:4px; display:none; white-space:pre-line; }
+  #msg.ok { display:block; background:#e8f5e9; color:#1b5e20; }
+  #msg.bad { display:block; background:#ffebee; color:#b71c1c; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; margin:10px 0; }
+  .card { border:1px solid var(--line); border-radius:6px; padding:10px; text-align:center; }
+  .card b { font-size:22px; display:block; }
+  .card.low { background:#fff3e0; border-color:#e65100; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  .Available { color:#1b5e20; } .Expired { color:#b71c1c; } .Issued { color:#555; }
+</style>
+</head>
+<body>
+<header>Blood Bank Management System</header>
+<nav>
+  <button class="active" data-tab="donors">Donor Management</button>
+  <button data-tab="inventory">Blood Inventory</button>
+</nav>
+<div id="msg"></div>
+<main>
+
+<!-- ===================== MODULE 1 ===================== -->
+<section id="donors" class="tab show">
+  <h3 id="donorFormTitle">Register Donor</h3>
+  <form id="donorForm">
+    <input type="hidden" id="donorId">
+    <label>Name<input id="name"></label>
+    <label>Age<input id="age" type="number"></label>
+    <label>Gender<select id="gender"><option>Male</option><option>Female</option><option>Other</option></select></label>
+    <label>Blood Group<select id="blood_group"></select></label>
+    <label>Weight (kg)<input id="weight" type="number" step="0.1"></label>
+    <label>Hemoglobin (g/dL)<input id="hemoglobin" type="number" step="0.1"></label>
+    <label>Phone<input id="phone"></label>
+    <label>Email (optional)<input id="email"></label>
+    <button class="primary" type="submit" id="donorSubmit">Save Donor</button>
+    <button class="small" type="button" id="donorCancel" style="display:none;align-self:end">Cancel edit</button>
+  </form>
+
+  <h3>Search Donors</h3>
+  <div class="row">
+    <input id="search" placeholder="Name or phone">
+    <select id="filterBG"><option value="">All blood groups</option></select>
+    <button class="small" onclick="loadDonors()">Search</button>
+  </div>
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Group</th><th>Wt</th><th>Hb</th><th>Phone</th><th>Last Donation</th><th>Count</th><th>Actions</th></tr></thead>
+    <tbody id="donorRows"></tbody>
+  </table>
+</section>
+
+<!-- ===================== MODULE 2 ===================== -->
+<section id="inventory" class="tab">
+  <h3>Stock Summary</h3>
+  <div class="cards" id="stockCards"></div>
+  <div id="alerts"></div>
+
+  <h3>Record Donation (adds blood unit)</h3>
+  <form id="donationForm">
+    <label>Donor ID<input id="don_donor" type="number"></label>
+    <label>Volume (ml)<input id="don_volume" type="number" value="350"></label>
+    <button class="primary" type="submit">Add to Inventory</button>
+  </form>
+
+  <h3>Blood Units</h3>
+  <div class="row">
+    <select id="invBG"><option value="">All groups</option></select>
+    <select id="invStatus"><option value="">All status</option><option>Available</option><option>Expired</option><option>Issued</option></select>
+    <button class="small" onclick="loadInventory()">Filter</button>
+  </div>
+  <table>
+    <thead><tr><th>Unit</th><th>Donor</th><th>Group</th><th>ml</th><th>Collected</th><th>Expires</th><th>Status</th><th>Issued To</th><th>Action</th></tr></thead>
+    <tbody id="unitRows"></tbody>
+  </table>
+</section>
+</main>
+
+<script>
+const GROUPS = ["A+","A-","B+","B-","AB+","AB-","O+","O-"];
+const $ = id => document.getElementById(id);
+
+function show(text, ok = true) {
+  const m = $("msg"); m.textContent = text; m.className = ok ? "ok" : "bad";
+  setTimeout(() => m.className = "", 6000);
+}
+async function api(url, method = "GET", body) {
+  const r = await fetch(url, { method, headers: {"Content-Type":"application/json"},
+                               body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json();
+  if (!r.ok) { show((j.error || "Error") + (j.errors ? "\n- " + j.errors.join("\n- ") : ""), false); return null; }
+  return j;
+}
+
+// tabs + dropdowns
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("show"));
+  b.classList.add("active"); $(b.dataset.tab).classList.add("show");
+  if (b.dataset.tab === "inventory") { loadSummary(); loadInventory(); } else loadDonors();
+});
+GROUPS.forEach(g => ["blood_group","filterBG","invBG"].forEach(id => $(id).add(new Option(g, g))));
+
+// ---------- Module 1
+const fields = ["name","age","gender","blood_group","weight","hemoglobin","phone","email"];
+$("donorForm").onsubmit = async e => {
+  e.preventDefault();
+  const body = {}; fields.forEach(f => body[f] = $(f).value);
+  const id = $("donorId").value;
+  const res = id ? await api("/api/donors/" + id, "PUT", body) : await api("/api/donors", "POST", body);
+  if (res) { show(id ? "Donor updated." : "Donor registered (ID " + res.id + ")."); resetDonorForm(); loadDonors(); }
+};
+function resetDonorForm() {
+  $("donorForm").reset(); $("donorId").value = "";
+  $("donorFormTitle").textContent = "Register Donor"; $("donorCancel").style.display = "none";
+}
+$("donorCancel").onclick = resetDonorForm;
+
+async function loadDonors() {
+  const q = encodeURIComponent($("search").value), bg = encodeURIComponent($("filterBG").value);
+  const donors = await api(`/api/donors?q=${q}&blood_group=${bg}`);
+  if (!donors) return;
+  $("donorRows").innerHTML = donors.map(d => `<tr>
+    <td>${d.id}</td><td>${d.name}</td><td>${d.age}</td><td>${d.blood_group}</td><td>${d.weight}</td>
+    <td>${d.hemoglobin}</td><td>${d.phone}</td><td>${d.last_donation_date || "-"}</td><td>${d.donation_count}</td>
+    <td><button class="small" onclick='editDonor(${JSON.stringify(d)})'>Edit</button>
+        <button class="small" onclick="checkElig(${d.id})">Eligible?</button>
+        <button class="small" onclick="delDonor(${d.id})">Delete</button></td></tr>`).join("")
+    || `<tr><td colspan="10">No donors found.</td></tr>`;
+}
+function editDonor(d) {
+  fields.forEach(f => $(f).value = d[f]); $("donorId").value = d.id;
+  $("donorFormTitle").textContent = "Update Donor #" + d.id; $("donorCancel").style.display = "inline";
+  window.scrollTo(0, 0);
+}
+async function checkElig(id) { const r = await api(`/api/donors/${id}/eligibility`); if (r) show(r.reason, r.eligible); }
+async function delDonor(id) {
+  if (!confirm("Delete donor " + id + "?")) return;
+  if (await api("/api/donors/" + id, "DELETE")) { show("Donor deleted."); loadDonors(); }
+}
+
+// ---------- Module 2
+$("donationForm").onsubmit = async e => {
+  e.preventDefault();
+  const r = await api("/api/inventory", "POST",
+    { donor_id: $("don_donor").value, volume_ml: $("don_volume").value });
+  if (r) { show(`Unit #${r.id} (${r.blood_group}) added. Expires ${r.expiry_date}.`); loadSummary(); loadInventory(); }
+};
+async function loadSummary() {
+  const s = await api("/api/inventory/summary"); if (!s) return;
+  $("stockCards").innerHTML = GROUPS.map(g =>
+    `<div class="card ${s.stock[g] < s.low_stock_limit ? "low" : ""}">${g}<b>${s.stock[g]}</b>units</div>`).join("");
+  let html = "";
+  if (s.low_stock.length) html += `<p>⚠ Low stock (&lt; ${s.low_stock_limit}): <b>${s.low_stock.join(", ")}</b></p>`;
+  if (s.expiring_soon.length) html += `<p>⏰ Expiring within 7 days: ` +
+    s.expiring_soon.map(x => `Unit #${x.unit_id} (${x.blood_group}, ${x.days_left}d)`).join(", ") + `</p>`;
+  $("alerts").innerHTML = html;
+}
+async function loadInventory() {
+  const units = await api(`/api/inventory?blood_group=${encodeURIComponent($("invBG").value)}&status=${$("invStatus").value}`);
+  if (!units) return;
+  $("unitRows").innerHTML = units.map(u => `<tr>
+    <td>${u.id}</td><td>${u.donor_name} (#${u.donor_id})</td><td>${u.blood_group}</td><td>${u.volume_ml}</td>
+    <td>${u.collection_date}</td><td>${u.expiry_date}</td><td class="${u.status}">${u.status}</td>
+    <td>${u.issued_to || "-"}</td>
+    <td>${u.status === "Available" ? `<button class="small" onclick="issueUnit(${u.id})">Issue</button>` : ""}</td></tr>`).join("")
+    || `<tr><td colspan="9">No units found.</td></tr>`;
+}
+async function issueUnit(id) {
+  const h = prompt("Hospital name:"); if (h === null) return;
+  const r = await api(`/api/inventory/${id}/issue`, "POST", { hospital: h });
+  if (r) { show(`Unit #${id} issued to ${r.issued_to}.`); loadSummary(); loadInventory(); }
+}
+
+loadDonors();
+</script>
+</body>
+</html>
